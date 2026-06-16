@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}1688分销选品系统{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; }
+        
+        .sidebar { width: 220px; background: #001529; min-height: 100vh; position: fixed; left: 0; top: 0; z-index: 100; }
+        .sidebar .logo { padding: 20px; color: #fff; font-size: 18px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar .logo span { color: #ff6a00; }
+        .sidebar .menu { padding: 12px 0; }
+        .sidebar .menu-item { display: flex; align-items: center; padding: 14px 24px; color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; transition: all 0.3s; cursor: pointer; }
+        .sidebar .menu-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
+        .sidebar .menu-item.active { color: #fff; background: #ff6a00; }
+        .sidebar .menu-item .icon { margin-right: 10px; font-size: 16px; }
+
+        .sidebar .user-profile {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #001529;
+        }
+        .sidebar .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #ff6a00;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .sidebar .user-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .sidebar .user-name {
+            color: #fff;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .sidebar .logout-btn {
+            color: rgba(255,255,255,0.65);
+            font-size: 12px;
+            cursor: pointer;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .sidebar .logout-btn:hover {
+            color: #ff4d4f;
+        }
+        
+        .main-content { flex: 1; margin-left: 220px; min-height: 100vh; }
+        .main-content .header { background: #fff; padding: 16px 24px; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; justify-content: space-between; }
+        .main-content .header .page-title { font-size: 18px; font-weight: 500; color: #333; }
+        .main-content .content { padding: 24px; }
+        
+        .search-form { display: flex; gap: 10px; align-items: center; }
+        .search-form input[type="text"] { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; width: 280px; outline: none; }
+        .search-form input[type="text"]:focus { border-color: #ff6a00; }
+        .search-form input[type="number"] { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; width: 70px; outline: none; }
+        .search-form button { padding: 8px 20px; background: #ff6a00; color: #fff; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+        .search-form button:hover { background: #ff8533; }
+        
+        .btn { padding: 8px 16px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; cursor: pointer; background: #fff; transition: all 0.2s; }
+        .btn:hover { border-color: #ff6a00; color: #ff6a00; }
+        .btn-primary { background: #ff6a00; border-color: #ff6a00; color: #fff; }
+        .btn-primary:hover { background: #ff8533; border-color: #ff8533; color: #fff; }
+        .btn-success { background: #52c41a; border-color: #52c41a; color: #fff; }
+        .btn-success:hover { background: #73d13d; border-color: #73d13d; color: #fff; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        
+        .stats-bar { display: flex; gap: 20px; padding: 12px 16px; background: #fff; border-radius: 8px; font-size: 13px; color: #666; margin-bottom: 16px; }
+        .stats-bar .item { display: flex; align-items: center; gap: 6px; }
+        .stats-bar .num { color: #ff6a00; font-weight: 600; }
+        
+        .product-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+        @media (max-width: 1400px) { .product-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 1200px) { .product-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 900px) { .product-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        .product-card { background: #fff; border-radius: 8px; overflow: hidden; transition: box-shadow 0.2s, transform 0.2s; position: relative; }
+        .product-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .product-card.selected { box-shadow: 0 0 0 2px #ff6a00; }
+        .product-card .checkbox { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; cursor: pointer; z-index: 10; }
+        .product-card .sync-badge { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 10px; font-size: 10px; z-index: 10; }
+        .product-card .sync-badge.synced { background: #e6f7ff; color: #1890ff; }
+        .product-card .sync-badge.pending { background: #fff7e6; color: #fa8c16; }
+        .product-card .sync-badge.failed { background: #fff2f0; color: #ff4d4f; }
+        .product-card .image-wrap { position: relative; padding-top: 100%; background: #f5f5f5; }
+        .product-card .image-wrap img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+        .product-card .content { padding: 12px; }
+        .product-card .title { font-size: 13px; color: #333; line-height: 1.5; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin-bottom: 8px; }
+        .product-card .title a { color: #333; text-decoration: none; }
+        .product-card .title a:hover { color: #ff6a00; }
+        .product-card .price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+        .product-card .price { font-size: 18px; color: #ff6a00; font-weight: 600; }
+        .product-card .price::before { content: '¥'; font-size: 12px; }
+        .product-card .sell-price { font-size: 12px; color: #52c41a; }
+        .product-card .meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #999; }
+        .product-card .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+        .product-card .tag { padding: 2px 6px; background: #f0f7ff; color: #1890ff; border-radius: 2px; font-size: 10px; }
+        .product-card .tag.green { background: #f6ffed; color: #52c41a; }
+        .product-card .tag.orange { background: #fff7e6; color: #fa8c16; }
+        .product-card .footer { display: flex; border-top: 1px solid #f0f0f0; }
+        .product-card .footer button { flex: 1; padding: 8px; text-align: center; font-size: 12px; color: #666; background: none; border: none; cursor: pointer; transition: all 0.2s; }
+        .product-card .footer button:hover { background: #ff6a00; color: #fff; }
+        .product-card .footer button.primary { color: #ff6a00; }
+        .product-card .footer button.primary:hover { background: #ff6a00; color: #fff; }
+        .product-card .footer a { flex: 1; padding: 8px; text-align: center; font-size: 12px; color: #666; text-decoration: none; transition: all 0.2s; }
+        .product-card .footer a:hover { background: #ff6a00; color: #fff; }
+        
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+        .tab { padding: 10px 24px; background: #fff; border: none; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .tab.active { color: #ff6a00; border-bottom-color: #ff6a00; font-weight: 500; }
+        .tab:hover { background: #fafafa; }
+        .tab .count { background: #f0f0f0; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 6px; }
+        .tab.active .count { background: #fff3e0; color: #ff6a00; }
+        
+        .filter-bar { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .filter-group { display: flex; align-items: center; gap: 6px; }
+        .filter-group label { color: #666; font-size: 13px; white-space: nowrap; }
+        .filter-group input, .filter-group select { padding: 8px 12px; border: 1px solid #e8e8e8; border-radius: 4px; font-size: 13px; min-width: 100px; outline: none; }
+        .filter-group input:focus, .filter-group select:focus { border-color: #ff6a00; }
+        
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .action-left { display: flex; align-items: center; gap: 16px; }
+        .checkbox-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: #333; }
+        .checkbox-label input { width: 16px; height: 16px; cursor: pointer; }
+        .selected-count { color: #ff6a00; font-weight: 600; }
+        .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 20px 0; }
+        .pagination button { padding: 8px 14px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .pagination button:hover { border-color: #ff6a00; color: #ff6a00; }
+        .pagination button.active { background: #ff6a00; color: #fff; border-color: #ff6a00; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination .page-info { color: #666; font-size: 14px; margin: 0 16px; }
+        
+        .empty-state { text-align: center; padding: 80px 20px; }
+        .empty-state .icon { font-size: 64px; margin-bottom: 20px; opacity: 0.3; }
+        .empty-state h2 { font-size: 18px; color: #333; margin-bottom: 8px; font-weight: normal; }
+        .empty-state p { color: #999; font-size: 14px; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal h3 { margin-bottom: 16px; font-size: 16px; }
+        .modal p { color: #666; margin-bottom: 16px; font-size: 14px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+        
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 24px; border-radius: 4px; font-size: 14px; z-index: 2000; opacity: 0; transition: opacity 0.3s; max-width: min(80vw, 720px); white-space: pre-wrap; word-break: break-word; line-height: 1.5; text-align: center; }
+        .toast.show { opacity: 1; }
+        .toast.success { background: #52c41a; }
+        .toast.error { background: #ff4d4f; }
+        .toast.warning { background: #faad14; }
+
+        /* 导入错误详情弹窗 */
+        #importErrorModal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); z-index: 3000; align-items: center; justify-content: center; }
+        #importErrorModal.show { display: flex; }
+        #importErrorModal .iem-box { background: #fff; border-radius: 10px; width: 90%; max-width: 560px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); overflow: hidden; }
+        #importErrorModal .iem-header { background: #fff2f0; border-bottom: 2px solid #ffccc7; padding: 16px 20px; display: flex; align-items: center; gap: 10px; }
+        #importErrorModal .iem-header-icon { font-size: 22px; line-height: 1; }
+        #importErrorModal .iem-header-title { font-size: 16px; font-weight: 600; color: #cf1322; flex: 1; }
+        #importErrorModal .iem-close { cursor: pointer; color: #aaa; font-size: 20px; line-height: 1; border: none; background: none; padding: 0 4px; }
+        #importErrorModal .iem-close:hover { color: #cf1322; }
+        #importErrorModal .iem-body { padding: 20px; }
+        #importErrorModal .iem-type { display: inline-block; background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; border-radius: 4px; font-size: 12px; padding: 2px 10px; margin-bottom: 12px; font-weight: 500; }
+        #importErrorModal .iem-reason { font-size: 14px; color: #333; margin-bottom: 14px; line-height: 1.7; }
+        #importErrorModal .iem-suggestion { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+        #importErrorModal .iem-suggestion-title { font-size: 13px; font-weight: 600; color: #ad6800; margin-bottom: 6px; }
+        #importErrorModal .iem-suggestion ul { margin: 0; padding-left: 18px; }
+        #importErrorModal .iem-suggestion li { font-size: 13px; color: #7c5200; line-height: 1.8; }
+        #importErrorModal .iem-log-label { font-size: 12px; color: #999; margin-bottom: 4px; }
+        #importErrorModal .iem-log { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 4px; padding: 10px 12px; font-size: 12px; color: #555; font-family: monospace; word-break: break-all; max-height: 90px; overflow-y: auto; white-space: pre-wrap; }
+        #importErrorModal .iem-footer { padding: 14px 20px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 10px; }
+        #importErrorModal .iem-btn { padding: 7px 18px; border-radius: 4px; font-size: 13px; cursor: pointer; border: 1px solid #d9d9d9; background: #fff; color: #333; }
+        #importErrorModal .iem-btn:hover { border-color: #ff6a00; color: #ff6a00; }
+        #importErrorModal .iem-btn.primary { background: #ff4d4f; border-color: #ff4d4f; color: #fff; }
+        #importErrorModal .iem-btn.primary:hover { background: #cf1322; border-color: #cf1322; }
+        #importErrorModal .iem-copy-success { color: #52c41a; font-size: 12px; display: none; }
+        
+        #loading { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 1000; align-items: center; justify-content: center; }
+        #loading .content { text-align: center; }
+        #loading .spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top-color: #ff6a00; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading .text { color: #666; font-size: 14px; }
+        
+        #confirmModal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+        #confirmModal .modal-content { background: #fff; border-radius: 8px; padding: 24px; max-width: 400px; width: 90%; text-align: center; }
+        #confirmModal .modal-title { font-size: 16px; color: #333; margin-bottom: 16px; }
+        #confirmModal .modal-actions { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+        #confirmModal .modal-btn { padding: 8px 24px; border-radius: 4px; font-size: 14px; cursor: pointer; border: 1px solid #ddd; background: #fff; }
+        #confirmModal .modal-btn.primary { background: #ff6a00; border-color: #ff6a00; color: #fff; }
+        #confirmModal .modal-btn:hover { opacity: 0.9; }
+        
+        .log-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+        .log-table th, .log-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+        .log-table th { background: #fafafa; font-weight: 500; color: #333; font-size: 13px; }
+        .log-table td { font-size: 13px; color: #666; }
+        .log-table tr:hover { background: #fafafa; }
+        .log-table .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+        .log-table .status-badge.completed { background: #f6ffed; color: #52c41a; }
+        .log-table .status-badge.pending { background: #fff7e6; color: #fa8c16; }
+        .log-table .status-badge.failed { background: #fff2f0; color: #ff4d4f; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo"><span>1688</span>分销选品</div>
+        <div class="menu">
+            <a class="menu-item {% if active_menu == 'pool' %}active{% endif %}" href="/products">
+                <span class="icon">📦</span>
+                <span>选品池</span>
+            </a>
+            <a class="menu-item {% if active_menu == 'category' %}active{% endif %}" href="/category-sync">
+                <span class="icon">🌳</span>
+                <span>商城分类同步</span>
+            </a>
+            <a class="menu-item {% if active_menu == 'logs' %}active{% endif %}" href="/logs">
+                <span class="icon">📋</span>
+                <span>任务执行日志</span>
+            </a>
+        </div>
+        
+        <div class="user-profile">
+            <div class="user-avatar">{{ (session.get('username') or 'U')[0] | upper }}</div>
+            <div class="user-info">
+                <div class="user-name" title="{{ session.get('username', '') }}">{{ session.get('username') or '管理员' }}</div>
+                <div class="logout-btn" onclick="logout()">
+                    <span>⏻</span> 退出登录
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="header">
+            <div class="page-title">{% block page_title %}{% endblock %}</div>
+            {% block header_extra %}{% endblock %}
+        </div>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <div id="loading">
+        <div class="content">
+            <div class="spinner"></div>
+            <div class="text">加载中...</div>
+            <div class="progress-container" style="display: none; width: 200px; margin-top: 10px;">
+                <div class="progress-bar" style="width: 0%; height: 4px; background: #4a90e2; border-radius: 2px; transition: width 0.3s;"></div>
+                <div class="progress-text" style="font-size: 12px; color: #666; margin-top: 5px;">0%</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title" id="confirmMessage">确认操作？</div>
+            <div class="modal-actions">
+                <button class="modal-btn" id="confirmCancel">取消</button>
+                <button class="modal-btn primary" id="confirmOk">确认</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+
+    <!-- 导入错误详情弹窗 -->
+    <div id="importErrorModal">
+        <div class="iem-box">
+            <div class="iem-header">
+                <span class="iem-header-icon">&#x26A0;&#xFE0F;</span>
+                <span class="iem-header-title">导入失败</span>
+                <button class="iem-close" onclick="closeImportErrorModal()" title="关闭">&#x2715;</button>
+            </div>
+            <div class="iem-body">
+                <span class="iem-type" id="iemType"></span>
+                <div class="iem-reason" id="iemReason"></div>
+                <div class="iem-suggestion" id="iemSuggestion" style="display:none">
+                    <div class="iem-suggestion-title">&#x1F4A1; 可能的解决方案</div>
+                    <ul id="iemSuggestionList"></ul>
+                </div>
+                <div class="iem-log-label">技术错误日志（可复制给技术支持）</div>
+                <div class="iem-log" id="iemLog"></div>
+            </div>
+            <div class="iem-footer">
+                <span class="iem-copy-success" id="iemCopySuccess">已复制！</span>
+                <button class="iem-btn" onclick="copyImportErrorLog()">复制错误日志</button>
+                <button class="iem-btn primary" onclick="closeImportErrorModal()">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        let refreshingAuthPromise = null;
+        let nativeFetchForAuth = null;
+        let excelLibraryLoaded = false;
+        let csvLibraryLoaded = false;
+
+        window.loadExcelLibrary = function() {
+            return new Promise(function(resolve, reject) {
+                if (window.XLSX || excelLibraryLoaded) {
+                    resolve();
+                    return;
+                }
+                excelLibraryLoaded = true;
+                var script = document.createElement('script');
+                script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+                script.onload = resolve;
+                script.onerror = function() {
+                    excelLibraryLoaded = false;
+                    reject(new Error('Failed to load Excel library'));
+                };
+                document.head.appendChild(script);
+            });
+        };
+
+        window.loadCSVLibrary = function() {
+            return new Promise(function(resolve, reject) {
+                if (window.Papa || csvLibraryLoaded) {
+                    resolve();
+                    return;
+                }
+                csvLibraryLoaded = true;
+                var script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js';
+                script.onload = resolve;
+                script.onerror = function() {
+                    csvLibraryLoaded = false;
+                    reject(new Error('Failed to load CSV library'));
+                };
+                document.head.appendChild(script);
+            });
+        };
+
+        async function refreshAuthSession() {
+            if (!refreshingAuthPromise) {
+                const baseFetch = nativeFetchForAuth || window.fetch.bind(window);
+                refreshingAuthPromise = (async () => {
+                    let lastResult = { success: false, retryable: false, code: '', error: '' };
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        try {
+                            const resp = await baseFetch('/api/auth/refresh', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            const data = await resp.json().catch(() => ({}));
+                            if (resp.ok && data && data.success) {
+                                return { success: true, retryable: false, code: '', error: '' };
+                            }
+                            const code = String((data && data.code) || '');
+                            const error = String((data && data.error) || '');
+                            const retryable = resp.status >= 500 || code === 'TOKEN_REFRESH_RETRYABLE';
+                            lastResult = { success: false, retryable, code, error };
+                            if (!retryable) {
+                                break;
+                            }
+                        } catch (e) {
+                            lastResult = { success: false, retryable: true, code: 'NETWORK_ERROR', error: String(e && e.message ? e.message : 'network error') };
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+                    }
+                    return lastResult;
+                })().finally(() => {
+                    refreshingAuthPromise = null;
+                });
+            }
+            return refreshingAuthPromise;
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            return window.fetch(url, options);
+        }
+
+        function isAuthFailurePayload(data) {
+            if (!data || typeof data !== 'object') return false;
+            const code = String(data.code || data.status || '').trim();
+            const message = String(data.error || data.msg || data.message || '').trim();
+            if (code === 'UNAUTHORIZED' || code === '401' || code === 'TOKEN_EXPIRED') return true;
+            if (message.includes('未登录') || message.includes('登录已过期') || message.includes('账号未登录')) return true;
+            if (data.raw && typeof data.raw === 'object') return isAuthFailurePayload(data.raw);
+            return false;
+        }
+
+        function isRefreshRetryablePayload(data) {
+            if (!data || typeof data !== 'object') return false;
+            const code = String(data.code || '').trim();
+            if (code === 'TOKEN_REFRESH_RETRYABLE') return true;
+            if (data.raw && typeof data.raw === 'object') return isRefreshRetryablePayload(data.raw);
+            return false;
+        }
+
+        (function() {
+            const originalFetch = window.fetch;
+            nativeFetchForAuth = originalFetch.bind(window);
+            window.fetch = async function(url, options = {}) {
+                const requestUrl = String(url || '');
+                const isApiRequest = requestUrl.includes('/api/') || requestUrl.startsWith('/api');
+                const isRefreshRequest = requestUrl.includes('/api/auth/refresh');
+                const hasRetried = Boolean(options && options.__authRetried);
+                try {
+                    const response = await originalFetch(url, options);
+                    if (isApiRequest && !isRefreshRequest && !hasRetried) {
+                        try {
+                            const data = await response.clone().json();
+                            const unauthorized = response.status === 401 || isAuthFailurePayload(data);
+                            const retryableRefresh = response.status === 503 && isRefreshRetryablePayload(data);
+                            if (unauthorized || retryableRefresh) {
+                                const refreshResult = await refreshAuthSession();
+                                if (refreshResult && refreshResult.success) {
+                                    const retryOptions = Object.assign({}, options, { __authRetried: true });
+                                    return originalFetch(url, retryOptions);
+                                }
+                                if (refreshResult && refreshResult.retryable) {
+                                    const retryOptions = Object.assign({}, options, { __authRetried: true });
+                                    return originalFetch(url, retryOptions);
+                                }
+                            }
+                        } catch (e) {
+                        }
+                    }
+
+                    return response;
+                } catch (error) {
+                    throw error;
+                }
+            };
+        })();
+
+        function logout() {
+            if (!confirm('确定要退出登录吗？')) return;
+
+            fetch('/api/logout', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/login';
+                    } else {
+                        showToast(data.error || '退出失败', 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('网络错误', 'error');
+                });
+        }
+
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ---- 导入错误详情弹窗 ----
+        const _IMPORT_ERROR_TYPES = {
+            json_parse: {
+                label: 'JSON 解析错误',
+                reason: '服务器返回了非预期的响应格式（可能是 HTML 错误页面，而非 JSON 数据）。',
+                suggestions: [
+                    '请检查网络连接是否正常，稍后重试。',
+                    '若反复失败，请联系管理员确认服务是否正常运行。',
+                    '尝试刷新页面后重新导入。'
+                ]
+            },
+            network: {
+                label: '网络连接错误',
+                reason: '无法连接到服务器，请求超时或网络中断。',
+                suggestions: [
+                    '请检查您的网络连接是否正常。',
+                    '稍等片刻后重试，服务器可能正在重启。',
+                    '如问题持续，请联系技术支持。'
+                ]
+            },
+            format: {
+                label: '文件格式错误',
+                reason: '上传的文件格式不符合要求，或文件已损坏。',
+                suggestions: [
+                    '请确保上传的是 .xlsx 格式的 Excel 文件（不支持 .xls 或 .csv）。',
+                    '请重新从系统导出模板，按模板格式填写数据后导入。',
+                    '请确保文件未被加密或设置密码保护。'
+                ]
+            },
+            required_field: {
+                label: '必填项缺失',
+                reason: 'Excel 中存在必填字段为空的行，导致部分或全部数据无法导入。',
+                suggestions: [
+                    '请检查 Excel 中所有行的必填列（如商品ID、名称、价格等）是否已填写。',
+                    '删除或补全空白行后重新导入。'
+                ]
+            },
+            timeout: {
+                label: '请求超时',
+                reason: '导入操作耗时过长，服务器未能在规定时间内完成处理。',
+                suggestions: [
+                    '请尝试减少单次导入的商品数量（建议每次不超过 500 条）。',
+                    '选择网络较好的时段重试。',
+                    '若数据量较大，请联系技术支持开启分批导入。'
+                ]
+            },
+            server: {
+                label: '服务器错误',
+                reason: '服务器在处理导入时发生内部错误。',
+                suggestions: [
+                    '请稍后重试，服务器可能存在临时故障。',
+                    '如果问题持续出现，请将错误日志发送给技术支持。'
+                ]
+            },
+            unknown: {
+                label: '未知错误',
+                reason: '导入过程中发生了未预期的错误。',
+                suggestions: [
+                    '请刷新页面后重试。',
+                    '如果问题持续，请将错误日志发送给技术支持。'
+                ]
+            }
+        };
+
+        function _detectImportErrorType(rawError, statusCode) {
+            if (!rawError) return 'unknown';
+            const msg = String(rawError).toLowerCase();
+            if (msg.includes('unexpected token') || msg.includes('not valid json') || msg.includes('json') && msg.includes('<html')) return 'json_parse';
+            if (msg.includes('networkerror') || msg.includes('failed to fetch') || msg.includes('network request failed') || msg.includes('err_connection')) return 'network';
+            if (msg.includes('timeout') || msg.includes('超时') || msg.includes('timed out')) return 'timeout';
+            if (msg.includes('格式') || msg.includes('format') || msg.includes('xlsx') || msg.includes('excel')) return 'format';
+            if (msg.includes('必填') || msg.includes('required') || msg.includes('缺少') || msg.includes('missing')) return 'required_field';
+            if (statusCode && statusCode >= 500) return 'server';
+            return 'unknown';
+        }
+
+        function showImportError(rawError, technicalDetail, statusCode) {
+            const type = _detectImportErrorType(rawError || technicalDetail, statusCode);
+            const info = _IMPORT_ERROR_TYPES[type] || _IMPORT_ERROR_TYPES.unknown;
+
+            document.getElementById('iemType').textContent = info.label;
+            document.getElementById('iemReason').textContent = info.reason;
+
+            const suggestionBox = document.getElementById('iemSuggestion');
+            const suggestionList = document.getElementById('iemSuggestionList');
+            if (info.suggestions && info.suggestions.length) {
+                suggestionList.innerHTML = info.suggestions.map(s => `<li>${s}</li>`).join('');
+                suggestionBox.style.display = '';
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+
+            const logParts = [];
+            if (rawError) logParts.push('错误信息: ' + rawError);
+            if (technicalDetail && technicalDetail !== rawError) logParts.push('技术详情: ' + technicalDetail);
+            if (statusCode) logParts.push('HTTP状态码: ' + statusCode);
+            logParts.push('时间: ' + new Date().toLocaleString('zh-CN'));
+            document.getElementById('iemLog').textContent = logParts.join('\n');
+
+            document.getElementById('iemCopySuccess').style.display = 'none';
+            document.getElementById('importErrorModal').classList.add('show');
+        }
+
+        function closeImportErrorModal() {
+            document.getElementById('importErrorModal').classList.remove('show');
+        }
+
+        function copyImportErrorLog() {
+            const log = document.getElementById('iemLog').textContent;
+            const tip = document.getElementById('iemCopySuccess');
+            const copyFn = navigator.clipboard && navigator.clipboard.writeText
+                ? navigator.clipboard.writeText(log)
+                : Promise.reject(new Error('浏览器不支持自动复制'));
+            copyFn.then(() => {
+                tip.style.display = 'inline';
+                setTimeout(() => tip.style.display = 'none', 2000);
+            }).catch(() => {
+                // 降级：选中文本
+                const el = document.getElementById('iemLog');
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                tip.textContent = '请手动复制（已选中）';
+                tip.style.display = 'inline';
+                setTimeout(() => { tip.style.display = 'none'; tip.textContent = '已复制！'; }, 2500);
+            });
+        }
+
+        // 点击遮罩关闭
+        document.getElementById('importErrorModal').addEventListener('click', function(e) {
+            if (e.target === this) closeImportErrorModal();
+        });
+        
+        function showLoading(text = '加载中...') {
+            document.querySelector('#loading .text').textContent = text;
+            document.getElementById('loading').style.display = 'flex';
+            // 重置进度条
+            const progressContainer = document.querySelector('#loading .progress-container');
+            const progressBar = document.querySelector('#loading .progress-bar');
+            const progressText = document.querySelector('#loading .progress-text');
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = '0%';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            // 重置进度条
+            const progressContainer = document.querySelector('#loading .progress-container');
+            const progressBar = document.querySelector('#loading .progress-bar');
+            const progressText = document.querySelector('#loading .progress-text');
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = '0%';
+        }
+
+        function updateLoadingProgress(percent, message) {
+            const progressContainer = document.querySelector('#loading .progress-container');
+            const progressBar = document.querySelector('#loading .progress-bar');
+            const progressText = document.querySelector('#loading .progress-text');
+            const textEl = document.querySelector('#loading .text');
+
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressBar) progressBar.style.width = percent + '%';
+            if (progressText) progressText.textContent = Math.round(percent) + '%';
+            if (message && textEl) textEl.textContent = message;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 1688分销选品系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #f0f2f5; 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        
+        .login-wrapper {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+        }
+        
+        .login-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 40px;
+        }
+        
+        .login-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-logo .logo-text {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        .login-logo .logo-text span {
+            color: #ff6a00;
+        }
+        .login-logo .logo-desc {
+            font-size: 13px;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #ff6a00;
+        }
+        .form-group input::placeholder {
+            color: #bfbfbf;
+        }
+        
+        .error-text {
+            color: #ff4d4f;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+        .error-text.show {
+            display: block;
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 10px;
+            background: #ff6a00;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        .login-btn:hover {
+            background: #ff8533;
+        }
+        .login-btn:disabled {
+            background: #d9d9d9;
+            cursor: not-allowed;
+        }
+        
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="logo-text"><span>1688</span>分销选品系统</div>
+                <div class="logo-desc">请登录以继续使用</div>
+            </div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" placeholder="请输入用户名" required>
+                    <div class="error-text" id="usernameError">请输入用户名</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" placeholder="请输入密码" required>
+                    <div class="error-text" id="passwordError">请输入密码</div>
+                </div>
+                
+                <button type="submit" class="login-btn" id="loginBtn">登 录</button>
+            </form>
+            
+            <div class="login-footer">
+                © 2024 1688分销选品系统
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/crypto-js.min.js"></script>
+    <script src="/static/js/jsencrypt.min.js"></script>
+    <script src="/static/js/captcha.js"></script>
+    <script>
+        let pendingLoginData = null;
+        const LOGIN_API_ENCRYPT_ENABLE = true;
+        const LOGIN_API_ENCRYPT_HEADER = 'X-Api-Encrypt';
+        const LOGIN_AES_ENCRYPT_KEY_HEADER = 'X-Encrypt-Key';
+        const LOGIN_API_ENCRYPT_ALGORITHM = 'RSA';
+        const LOGIN_API_ENCRYPT_REQUEST_KEY = 'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDXL4J49AJiYytYnietPbkSsMFQ5sfGmtw5sDAaVGRUOMrUuQwXPfTULXp7JCSixgRbxOnHhU0xyXpgPejy0W7ptH6Sp/KqnkTHyN1rCDcmGBmo/e97SDHTHX6tl6LYR/4L/SXiGKwD91DFbz4mlqoLKvWoqKIXoygLOhzhF+L/wwIDAQAB';
+
+        function randomString(length) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function aesEncrypt(text, key) {
+            const keyUtf8 = CryptoJS.enc.Utf8.parse(key);
+            return CryptoJS.AES.encrypt(text, keyUtf8, {
+                mode: CryptoJS.mode.ECB,
+                padding: CryptoJS.pad.Pkcs7
+            }).toString();
+        }
+
+        function encryptLoginRequestBody(payload) {
+            const jsonData = JSON.stringify(payload);
+            if (!LOGIN_API_ENCRYPT_ENABLE) {
+                return { body: jsonData, headers: {} };
+            }
+
+            if (LOGIN_API_ENCRYPT_ALGORITHM === 'RSA') {
+                const aesKey = randomString(32);
+                const encryptedBody = aesEncrypt(jsonData, aesKey);
+                const encryptor = new JSEncrypt();
+                encryptor.setPublicKey(LOGIN_API_ENCRYPT_REQUEST_KEY);
+                const encryptedAesKey = encryptor.encrypt(aesKey);
+                if (!encryptedAesKey) {
+                    throw new Error('RSA加密AES密钥失败');
+                }
+                return {
+                    body: encryptedBody,
+                    headers: {
+                        [LOGIN_API_ENCRYPT_HEADER]: 'true',
+                        [LOGIN_AES_ENCRYPT_KEY_HEADER]: encryptedAesKey
+                    }
+                };
+            }
+
+            throw new Error('不支持的登录加密算法');
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            let hasError = false;
+            
+            if (!username) {
+                document.getElementById('usernameError').classList.add('show');
+                hasError = true;
+            } else {
+                document.getElementById('usernameError').classList.remove('show');
+            }
+            
+            if (!password) {
+                document.getElementById('passwordError').classList.add('show');
+                hasError = true;
+            } else {
+                document.getElementById('passwordError').classList.remove('show');
+            }
+            
+            if (hasError) return;
+            
+            pendingLoginData = { username, password };
+            
+            window.captchaInstance = Captcha.init({
+                baseUrl: '/api/captcha',
+                mode: 'pop',
+                vSpace: 5,
+                explain: '向右滑动完成验证',
+                imgSize: { width: '310px', height: '155px' },
+                success: onCaptchaSuccess,
+                error: onCaptchaError
+            });
+            
+            window.captchaInstance.show();
+        });
+        
+        function onCaptchaSuccess(params) {
+            console.log('验证码验证成功:', params);
+            
+            const captchaVerification = params.captchaVerification || params.token;
+            
+            if (pendingLoginData) {
+                doLogin(pendingLoginData.username, pendingLoginData.password, captchaVerification);
+            }
+        }
+        
+        function onCaptchaError(msg) {
+            console.log('验证码验证失败:', msg);
+        }
+        
+        async function doLogin(username, password, captchaVerification) {
+            const loginBtn = document.getElementById('loginBtn');
+            loginBtn.disabled = true;
+            loginBtn.textContent = '登录中...';
+            
+            try {
+                const loginPayload = {
+                    username: username,
+                    password: password,
+                    captchaVerification: captchaVerification
+                };
+                const encrypted = encryptLoginRequestBody(loginPayload);
+                const isEncrypted = encrypted.headers[LOGIN_API_ENCRYPT_HEADER] === 'true';
+                const requestHeaders = Object.assign({ 'Content-Type': 'application/json' }, encrypted.headers);
+                if (isEncrypted) {
+                    requestHeaders.isEncrypt = 'true';
+                }
+                const requestBody = isEncrypted ? JSON.stringify(encrypted.body) : encrypted.body;
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: requestHeaders,
+                    body: requestBody
+                });
+                const rawText = await response.text();
+                let result = null;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (e) {
+                    throw new Error('登录接口返回非JSON: HTTP ' + response.status);
+                }
+                
+                if (result.success) {
+                    // 检查是否有保存的重定向 URL
+                    const redirectUrl = sessionStorage.getItem('redirect_after_login');
+                    if (redirectUrl) {
+                        sessionStorage.removeItem('redirect_after_login');
+                        window.location.href = redirectUrl;
+                    } else {
+                        window.location.href = result.redirect || '/';
+                    }
+                } else {
+                    alert(result.error || '登录失败');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = '登 录';
+                }
+            } catch (error) {
+                alert('登录请求失败: ' + error.message);
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登 录';
+            }
+        }
+    </script>
+</body>
+</html>

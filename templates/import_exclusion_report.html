@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}导入排除报告{% endblock %}
+{% block page_title %}{% endblock %}
+{% block content %}
+<div class="container" style="padding: 24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
+        <div>
+            <div id="reportMeta" style="color:#666; font-size:13px;">正在加载...</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="copyRowNumbers()">复制行号</button>
+            <button class="btn btn-sm" onclick="exportReportCsv()">导出 CSV</button>
+            <a class="btn btn-sm btn-primary" href="/products">返回 products</a>
+        </div>
+    </div>
+
+    <div style="background:#fff7e6; border:1px solid #ffd591; color:#ad6800; padding:14px 16px; border-radius:8px; margin-bottom:16px;">
+        <strong id="reportBanner">共排除 0 行数据</strong>
+    </div>
+
+    <div class="table-container" style="background:#fff; border-radius:8px; overflow:hidden; border:1px solid #eee;">
+        <table class="data-table" style="width:100%; table-layout:fixed; border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="width:90px;">Excel 行号</th>
+                    <th style="width:190px;">商品标题（脱敏）</th>
+                    <th style="width:180px;">原始类目值</th>
+                    <th style="width:320px;">排除原因</th>
+                    <th style="width:260px;">建议操作</th>
+                </tr>
+            </thead>
+            <tbody id="reportTableBody">
+                <tr><td colspan="5" style="text-align:center; color:#999; padding:32px;">正在加载...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="reportPagination" style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; align-items:center;"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+    <script>
+    const reportId = {{ report_id|tojson }};
+    let reportPage = 1;
+    const reportPageSize = 200;
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderCellValue(value, extraClass = '') {
+        const safeValue = String(value || '').trim() || '-';
+        return `<div class="report-cell-value ${extraClass || ''}">${escapeHtml(safeValue)}</div>`;
+    }
+
+    /*
+    function renderReportRows(items) {
+        const tbody = document.getElementById('reportTableBody');
+        if (!Array.isArray(items) || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999; padding:32px;">暂无数据</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(item => `
+            <tr>
+                <td>${item.row_index || '-'}</td>
+                <td>${item.raw_category_name || '-'}</td>
+                <td>${item.exclude_reason || '-'}</td>
+                <td>${item.masked_title || '-'}</td>
+                <td>${item.suggestion || '-'}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderReportPagination(totalCount, page, pageSize) {
+        const container = document.getElementById('reportPagination');
+        const totalPages = Math.max(1, Math.ceil((Number(totalCount) || 0) / pageSize));
+        container.innerHTML = `
+            <span style="color:#666; font-size:13px;">第 ${page} / ${totalPages} 页，共 ${totalCount} 行</span>
+            <button class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="loadReport(${page - 1})">上一页</button>
+            <button class="btn btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="loadReport(${page + 1})">下一页</button>
+        `;
+    }
+
+    function loadReport(page = 1) {
+        reportPage = page;
+        fetch(`/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}?page=${page}&page_size=${reportPageSize}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.error || '加载失败');
+                }
+                const summary = data.summary || {};
+                document.getElementById('reportMeta').textContent =
+                    `报告ID：${summary.report_id || '-'}  创建时间：${summary.created_at || '-'}`;
+                document.getElementById('reportBanner').textContent = `共排除 ${summary.excluded_count || 0} 行数据`;
+                renderReportRows(data.items || []);
+                renderReportPagination(data.total_count || 0, data.page || 1, data.page_size || reportPageSize);
+            })
+            .catch(error => {
+                document.getElementById('reportTableBody').innerHTML =
+                    `<tr><td colspan="5" style="text-align:center; color:#ff4d4f; padding:32px;">${error.message || '加载失败'}</td></tr>`;
+            });
+    }
+
+    function exportReportCsv() {
+        window.location.href = `/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}/export`;
+    }
+
+    function copyRowNumbers() {
+        fetch(`/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}/row-numbers`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.error || '复制失败');
+                }
+                const text = (data.row_numbers || []).join(',');
+                return navigator.clipboard.writeText(text).then(() => {
+                    showToast('行号已复制', 'success');
+                });
+            })
+            .catch(error => {
+                showToast(error.message || '复制失败', 'error');
+            });
+    }
+
+    */
+
+    (function initImportExclusionReportPage() {
+        const heading = document.querySelector('h2');
+        const banner = document.getElementById('reportBanner');
+        const meta = document.getElementById('reportMeta');
+        const rowNumbersBtn = document.querySelector('button[onclick="copyRowNumbers()"]');
+        const exportBtn = document.querySelector('button[onclick="exportReportCsv()"]');
+        const backBtn = document.querySelector('a[href="/products"]');
+
+        if (heading) heading.textContent = '\u5bfc\u5165\u6392\u9664\u62a5\u544a';
+        if (meta) meta.textContent = '\u6b63\u5728\u52a0\u8f7d...';
+        if (banner) banner.textContent = '\u5171\u6392\u9664 0 \u884c\u6570\u636e';
+        if (rowNumbersBtn) rowNumbersBtn.textContent = '\u590d\u5236\u884c\u53f7';
+        if (exportBtn) exportBtn.textContent = '\u5bfc\u51fa CSV';
+        if (backBtn) backBtn.textContent = '\u8fd4\u56de products';
+
+        window.renderReportRows = function(items) {
+            const tbody = document.getElementById('reportTableBody');
+            if (!Array.isArray(items) || items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999; padding:32px;">\u6682\u65e0\u6570\u636e</td></tr>';
+                return;
+            }
+            tbody.innerHTML = items.map(item => `
+                <tr>
+                    <td>${renderCellValue(item.row_index || '-', 'report-field-row')}</td>
+                    <td>${renderCellValue(item.masked_title || '-', 'report-field-title')}</td>
+                    <td>${renderCellValue(item.raw_category_name || '-', 'report-field-category')}</td>
+                    <td>${renderCellValue(item.exclude_reason || '-', 'report-field-reason')}</td>
+                    <td>${renderCellValue(item.suggestion || '-', 'report-field-suggestion')}</td>
+                </tr>
+            `).join('');
+        };
+
+        window.renderReportPagination = function(totalCount, page, pageSize) {
+            const container = document.getElementById('reportPagination');
+            const totalPages = Math.max(1, Math.ceil((Number(totalCount) || 0) / pageSize));
+            container.innerHTML = `
+                <span style="color:#666; font-size:13px;">\u7b2c ${page} / ${totalPages} \u9875\uff0c\u5171 ${totalCount} \u884c</span>
+                <button class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="loadReport(${page - 1})">\u4e0a\u4e00\u9875</button>
+                <button class="btn btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="loadReport(${page + 1})">\u4e0b\u4e00\u9875</button>
+            `;
+        };
+
+        window.loadReport = function(page = 1) {
+            reportPage = page;
+            fetch(`/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}?page=${page}&page_size=${reportPageSize}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.error || '\u52a0\u8f7d\u5931\u8d25');
+                    }
+                    const summary = data.summary || {};
+                    document.getElementById('reportMeta').textContent =
+                        `\u62a5\u544aID\uff1a${summary.report_id || '-'}  \u521b\u5efa\u65f6\u95f4\uff1a${summary.created_at || '-'}`;
+                    document.getElementById('reportBanner').textContent =
+                        `\u5171\u6392\u9664 ${summary.excluded_count || 0} \u884c\u6570\u636e`;
+                    renderReportRows(data.items || []);
+                    renderReportPagination(data.total_count || 0, data.page || 1, data.page_size || reportPageSize);
+                })
+                .catch(error => {
+                    document.getElementById('reportTableBody').innerHTML =
+                        `<tr><td colspan="5" style="text-align:center; color:#ff4d4f; padding:32px;">${error.message || '\u52a0\u8f7d\u5931\u8d25'}</td></tr>`;
+                });
+        };
+
+        window.exportReportCsv = function() {
+            window.location.href = `/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}/export`;
+        };
+
+        window.copyRowNumbers = function() {
+            fetch(`/api/products/import/exclusion-reports/${encodeURIComponent(reportId)}/row-numbers`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.error || '\u590d\u5236\u5931\u8d25');
+                    }
+                    const text = (data.row_numbers || []).join(',');
+                    return navigator.clipboard.writeText(text).then(() => {
+                        showToast('\u884c\u53f7\u5df2\u590d\u5236', 'success');
+                    });
+                })
+                .catch(error => {
+                    showToast(error.message || '\u590d\u5236\u5931\u8d25', 'error');
+                });
+        };
+
+        loadReport(1);
+    })();
+</script>
+<style>
+    #reportTableBody tr td {
+        vertical-align: top;
+        padding: 14px 12px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    #reportTableBody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .data-table thead th {
+        padding: 16px 12px;
+        font-size: 17px;
+        font-weight: 800;
+        color: #111827;
+        text-align: left;
+        border-bottom: 1px solid #f0f0f0;
+        background: #fafafa;
+    }
+
+    .report-cell-value {
+        color: #262626;
+        font-size: 13px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        min-height: 26px;
+    }
+
+    .report-cell-value code,
+    .report-cell-value span {
+        font-family: Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
+        font-size: 12px;
+    }
+
+    .report-field-title {
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .report-field-reason {
+        color: #ad6800;
+    }
+
+    .report-field-suggestion {
+        color: #096dd9;
+    }
+
+    .report-field-row {
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .report-field-category {
+        color: #595959;
+    }
+</style>
+{% endblock %}

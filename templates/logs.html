@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% set active_menu = 'logs' %}
+
+{% block title %}任务执行日志 - 1688分销选品系统{% endblock %}
+
+{% block page_title %}任务执行日志{% endblock %}
+
+{% block content %}
+<div class="logs-container">
+    <!-- 统计卡片 -->
+    <div class="stats-cards" style="display: flex; gap: 16px; margin-bottom: 20px;">
+        <div class="stat-card" style="flex: 1; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="color: #666; font-size: 13px; margin-bottom: 8px;">总执行次数</div>
+            <div id="statTotal" style="font-size: 28px; font-weight: 600; color: #333;">0</div>
+        </div>
+        <div class="stat-card" style="flex: 1; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="color: #666; font-size: 13px; margin-bottom: 8px;">今日执行</div>
+            <div id="statToday" style="font-size: 28px; font-weight: 600; color: #1890ff;">0</div>
+        </div>
+        <div class="stat-card" style="flex: 1; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="color: #666; font-size: 13px; margin-bottom: 8px;">成功次数</div>
+            <div id="statSuccess" style="font-size: 28px; font-weight: 600; color: #52c41a;">0</div>
+        </div>
+        <div class="stat-card" style="flex: 1; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="color: #666; font-size: 13px; margin-bottom: 8px;">失败次数</div>
+            <div id="statFail" style="font-size: 28px; font-weight: 600; color: #ff4d4f;">0</div>
+        </div>
+    </div>
+    
+    <!-- 筛选条件 -->
+    <div class="filter-bar" style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="color: #666; font-size: 13px;">请求账号:</label>
+            <input type="text" id="filterUsername" placeholder="输入账号" style="padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px; width: 120px;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="color: #666; font-size: 13px;">请求方法:</label>
+            <select id="filterMethod" style="padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px;">
+                <option value="">全部</option>
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="color: #666; font-size: 13px;">执行状态:</label>
+            <select id="filterStatus" style="padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px;">
+                <option value="">全部</option>
+                <option value="1">成功</option>
+                <option value="0">失败</option>
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="color: #666; font-size: 13px;">日期范围:</label>
+            <input type="date" id="filterStartDate" style="padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px;">
+            <span style="color: #999;">至</span>
+            <input type="date" id="filterEndDate" style="padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px;">
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="loadLogs()">查询</button>
+        <button class="btn btn-sm" onclick="resetFilters()">重置</button>
+    </div>
+    
+    <!-- 日志表格 -->
+    <div class="logs-table" style="background: #fff; border-radius: 8px; overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #fafafa; border-bottom: 1px solid #e8e8e8;">
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 60px;">ID</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 100px;">请求账号</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 80px; white-space: nowrap;">请求方法</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333;">请求路径</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 150px;">请求参数</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 150px;">返回参数</th>
+                    <th style="padding: 12px 16px; text-align: center; font-weight: 500; color: #333; width: 80px;">状态</th>
+                    <th style="padding: 12px 16px; text-align: center; font-weight: 500; color: #333; width: 100px;">耗时(ms)</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 500; color: #333; width: 160px;">执行时间</th>
+                    <th style="padding: 12px 16px; text-align: center; font-weight: 500; color: #333; width: 80px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="logsTableBody">
+                <tr>
+                    <td colspan="10" style="padding: 40px; text-align: center; color: #999;">加载中...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="pagination" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+        <div id="paginationInfo" style="color: #666; font-size: 13px;">共 0 条记录</div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" id="prevPageBtn" onclick="goToPage(currentPage - 1)" disabled>上一页</button>
+            <span id="pageInfo" style="padding: 6px 12px; color: #666;">第 1 页</span>
+            <button class="btn btn-sm" id="nextPageBtn" onclick="goToPage(currentPage + 1)">下一页</button>
+        </div>
+    </div>
+</div>
+
+<!-- 日志详情弹窗 -->
+<div class="modal-overlay" id="logDetailModal">
+    <div class="modal" style="width: 800px; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin-bottom: 16px;">日志详情</h3>
+        <div id="logDetailContent">
+            <!-- 详情内容 -->
+        </div>
+        <div class="modal-actions" style="margin-top: 20px;">
+            <button class="btn btn-sm" onclick="closeLogDetailModal()">关闭</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    let totalPage = 1;
+    const pageSize = 20;
+    const defaultFilterDate = '{{ default_filter_date }}';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('filterStartDate').value = defaultFilterDate;
+        document.getElementById('filterEndDate').value = defaultFilterDate;
+
+        Promise.all([loadLogs(), loadStats()]);
+    });
+
+    function loadStats() {
+        return fetch('/api/logs/stats')
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const stats = result.stats;
+                    document.getElementById('statTotal').textContent = stats.total || 0;
+                    document.getElementById('statToday').textContent = stats.today || 0;
+                    document.getElementById('statSuccess').textContent = stats.success_count || 0;
+                    document.getElementById('statFail').textContent = stats.fail_count || 0;
+                }
+            });
+    }
+
+    function getQueryParams() {
+        const params = new URLSearchParams();
+        params.append('page', currentPage);
+        params.append('page_size', pageSize);
+
+        const username = document.getElementById('filterUsername').value;
+        const method = document.getElementById('filterMethod').value;
+        const status = document.getElementById('filterStatus').value;
+        const startDate = document.getElementById('filterStartDate').value;
+        const endDate = document.getElementById('filterEndDate').value;
+
+        if (username) params.append('username', username);
+        if (method) params.append('request_method', method);
+        if (status !== '') params.append('success', status);
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+
+        return params.toString();
+    }
+
+    function loadLogs() {
+        const tbody = document.getElementById('logsTableBody');
+        tbody.innerHTML = '<tr><td colspan="10" style="padding: 40px; text-align: center; color: #999;"><div class="loading-spinner" style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #1890ff; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>加载中...</td></tr>';
+
+        loadLogs.startTime = Date.now();
+        return fetch('/api/logs?' + getQueryParams())
+            .then(r => r.json())
+            .then(result => {
+                const loadTime = Date.now() - loadLogs.startTime;
+                console.log(`[Logs] Loaded in ${loadTime}ms, query time: ${result.query_time}ms`);
+
+                if (result.success) {
+                    renderLogs(result.logs);
+                    updatePagination(result.total, result.page);
+                }
+            })
+            .catch(err => {
+                console.error('[Logs] Load error:', err);
+                tbody.innerHTML = '<tr><td colspan="10" style="padding: 40px; text-align: center; color: #ff4d4f;">加载失败，请重试</td></tr>';
+            });
+    }
+
+    function renderLogs(logs) {
+        const tbody = document.getElementById('logsTableBody');
+        
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" style="padding: 40px; text-align: center; color: #999;">暂无数据</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = logs.map(log => `
+            <tr style="border-bottom: 1px solid #f0f0f0;">
+                <td style="padding: 12px 16px; color: #666;">${log.id}</td>
+                <td style="padding: 12px 16px;">${log.username || '-'}</td>
+                <td style="padding: 12px 16px;">
+                    <span style="padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;
+                        ${getMethodStyle(log.request_method)}">
+                        ${log.request_method}
+                    </span>
+                </td>
+                <td style="padding: 12px 16px; font-size: 13px; color: #333;">${log.request_path || '-'}</td>
+                <td style="padding: 12px 16px; font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.request_params_preview || '')}">${log.request_params_preview || '-'}...</td>
+                <td style="padding: 12px 16px; font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.response_data_preview || '')}">${log.response_data_preview || '-'}...</td>
+                <td style="padding: 12px 16px; text-align: center;">
+                    <span style="padding: 2px 8px; border-radius: 4px; font-size: 12px;
+                        ${log.success ? 'background: #f6ffed; color: #52c41a;' : 'background: #fff2f0; color: #ff4d4f;'}">
+                        ${log.success ? '成功' : '失败'}
+                    </span>
+                </td>
+                <td style="padding: 12px 16px; text-align: center; color: #666;">${log.execution_time || 0}</td>
+                <td style="padding: 12px 16px; color: #666; font-size: 13px;">${formatDateTime(log.created_at)}</td>
+                <td style="padding: 12px 16px; text-align: center;">
+                    <button class="btn btn-sm" onclick="showLogDetail(${log.id})" style="padding: 4px 8px; font-size: 12px;">详情</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    function getMethodStyle(method) {
+        const styles = {
+            'GET': 'background: #e6f7ff; color: #1890ff;',
+            'POST': 'background: #f6ffed; color: #52c41a;',
+            'PUT': 'background: #fff7e6; color: #fa8c16;',
+            'DELETE': 'background: #fff2f0; color: #ff4d4f;'
+        };
+        return styles[method] || 'background: #f5f5f5; color: #666;';
+    }
+    
+    function formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        return String(dateStr).trim();
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+    }
+    
+    function updatePagination(total, page) {
+        totalPage = Math.ceil(total / pageSize);
+        currentPage = page;
+        
+        document.getElementById('paginationInfo').textContent = `共 ${total} 条记录`;
+        document.getElementById('pageInfo').textContent = `第 ${page} / ${totalPage || 1} 页`;
+        
+        document.getElementById('prevPageBtn').disabled = page <= 1;
+        document.getElementById('nextPageBtn').disabled = page >= totalPage;
+    }
+    
+    function goToPage(page) {
+        if (page < 1 || page > totalPage) return;
+        currentPage = page;
+        loadLogs();
+    }
+    
+    function resetFilters() {
+        document.getElementById('filterUsername').value = '';
+        document.getElementById('filterMethod').value = '';
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+        currentPage = 1;
+        loadLogs();
+    }
+    
+    function showLogDetail(logId) {
+        fetch(`/api/logs/${logId}`)
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const log = result.log;
+                    const content = document.getElementById('logDetailContent');
+                    
+                    let requestParams = '-';
+                    let responseData = '-';
+                    
+                    try {
+                        requestParams = log.request_params ? JSON.stringify(JSON.parse(log.request_params), null, 2) : '-';
+                    } catch {
+                        requestParams = log.request_params || '-';
+                    }
+                    
+                    try {
+                        responseData = log.response_data ? JSON.stringify(JSON.parse(log.response_data), null, 2) : '-';
+                    } catch {
+                        responseData = log.response_data || '-';
+                    }
+                    
+                    // 解析返回数据，提取关键信息
+                    let responseInfo = '';
+                    try {
+                        const respObj = JSON.parse(log.response_data || '{}');
+                        
+                        // 判断是否有失败详情（部分成功的情况）
+                        const hasFailedDetails = respObj.failed_details && respObj.failed_details.length > 0;
+                        const failCount = respObj.fail_count || (hasFailedDetails ? respObj.failed_details.length : 0);
+                        const successCount = respObj.success_count || (respObj.total ? respObj.total - failCount : 0);
+                        const totalCount = respObj.total || (successCount + failCount);
+                        
+                        if (hasFailedDetails || failCount > 0) {
+                            // 部分成功或全部失败
+                            if (successCount > 0) {
+                                // 部分成功
+                                const failedItems = respObj.failed_details ? respObj.failed_details.map(item => `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff2f0; border-radius: 4px; font-size: 12px;">
+                                        <div style="color: #333; font-weight: 500;">${item.name || '未知商品'}</div>
+                                        <div style="color: #ff4d4f; margin-top: 4px;">错误: ${item.reason || '未知错误'}</div>
+                                        ${item.offer_id ? `<div style="color: #999; font-size: 11px; margin-top: 2px;">商品ID: ${item.offer_id}</div>` : ''}
+                                    </div>
+                                `).join('') : '';
+                                
+                                responseInfo = `
+                                    <div style="background: #fff7e6; border: 1px solid #ffd591; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+                                        <div style="color: #fa8c16; font-weight: 500; margin-bottom: 8px;">⚠️ 部分成功 (${successCount}/${totalCount})</div>
+                                        <div style="color: #666; font-size: 13px; margin-bottom: 8px;">成功: ${successCount} 条, 失败: ${failCount} 条</div>
+                                        ${failedItems ? `<div style="color: #666; font-size: 13px; margin-bottom: 8px;">失败详情:</div>${failedItems}` : ''}
+                                    </div>
+                                `;
+                            } else {
+                                // 全部失败
+                                const failedItems = respObj.failed_details ? respObj.failed_details.map(item => `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff2f0; border-radius: 4px; font-size: 12px;">
+                                        <div style="color: #333; font-weight: 500;">${item.name || '未知商品'}</div>
+                                        <div style="color: #ff4d4f; margin-top: 4px;">错误: ${item.reason || '未知错误'}</div>
+                                    </div>
+                                `).join('') : `<div style="color: #666; font-size: 13px;">${respObj.error || '未知错误'}</div>`;
+                                
+                                responseInfo = `
+                                    <div style="background: #fff2f0; border: 1px solid #ffccc7; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+                                        <div style="color: #ff4d4f; font-weight: 500; margin-bottom: 8px;">❌ 执行失败 (${failCount}/${totalCount})</div>
+                                        ${failedItems}
+                                    </div>
+                                `;
+                            }
+                        } else if (respObj.success === true || (respObj.success !== false && totalCount > 0)) {
+                            // 全部成功
+                            responseInfo = `
+                                <div style="background: #f6ffed; border: 1px solid #b7eb8f; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+                                    <div style="color: #52c41a; font-weight: 500;">✅ 执行成功</div>
+                                    ${totalCount > 0 ? `<div style="color: #666; font-size: 13px; margin-top: 4px;">共处理 ${totalCount} 条数据</div>` : ''}
+                                </div>
+                            `;
+                        } else {
+                            // 其他失败情况
+                            responseInfo = `
+                                <div style="background: #fff2f0; border: 1px solid #ffccc7; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+                                    <div style="color: #ff4d4f; font-weight: 500; margin-bottom: 8px;">❌ 执行失败</div>
+                                    <div style="color: #666; font-size: 13px;">${respObj.error || '未知错误'}</div>
+                                </div>
+                            `;
+                        }
+                    } catch (e) {
+                        responseInfo = '';
+                    }
+                    
+                    content.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px;">
+                            <div style="color: #666;">日志ID:</div>
+                            <div>${log.id}</div>
+                            
+                            <div style="color: #666;">请求账号:</div>
+                            <div>${log.username || '-'}</div>
+                            
+                            <div style="color: #666;">请求方法:</div>
+                            <div><span style="${getMethodStyle(log.request_method)} padding: 2px 8px; border-radius: 4px;">${log.request_method}</span></div>
+                            
+                            <div style="color: #666;">请求路径:</div>
+                            <div>${log.request_path || '-'}</div>
+                            
+                            <div style="color: #666;">执行状态:</div>
+                            <div><span style="${log.success ? 'background: #f6ffed; color: #52c41a;' : 'background: #fff2f0; color: #ff4d4f;'} padding: 2px 8px; border-radius: 4px;">${log.success ? '成功' : '失败'}</span></div>
+                            
+                            <div style="color: #666;">IP地址:</div>
+                            <div>${log.ip_address || '-'}</div>
+                            
+                            <div style="color: #666;">执行耗时:</div>
+                            <div>${log.execution_time || 0} ms</div>
+                            
+                            <div style="color: #666;">执行时间:</div>
+                            <div>${formatDateTime(log.created_at)}</div>
+                            
+                            <div style="color: #666;">错误信息:</div>
+                            <div style="color: #ff4d4f;">${log.error_message || '-'}</div>
+                        </div>
+                        
+                        ${responseInfo}
+                        
+                        <div style="margin-top: 20px;">
+                            <div style="color: #666; margin-bottom: 8px; font-weight: 500;">请求参数:</div>
+                            <pre style="background: #f8f9fa; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #e8e8e8; font-family: 'Consolas', 'Monaco', monospace;">${escapeHtml(requestParams)}</pre>
+                        </div>
+                        
+                        <div style="margin-top: 16px;">
+                            <div style="color: #666; margin-bottom: 8px; font-weight: 500;">原始返回数据:</div>
+                            <pre style="background: #f8f9fa; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto; border: 1px solid #e8e8e8; font-family: 'Consolas', 'Monaco', monospace;">${escapeHtml(responseData)}</pre>
+                        </div>
+                    `;
+                    
+                    document.getElementById('logDetailModal').classList.add('show');
+                }
+            });
+    }
+    
+    function closeLogDetailModal() {
+        document.getElementById('logDetailModal').classList.remove('show');
+    }
+    
+    // 点击遮罩关闭弹窗
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('show');
+            }
+        });
+    });
+</script>
+
+<style>
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}

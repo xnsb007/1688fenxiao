@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% set active_menu = 'preview' %}
+
+{% block title %}商品预览 - 1688分销选品系统{% endblock %}
+
+{% block page_title %}商品预览{% endblock %}
+
+{% block header_extra %}
+<form class="search-form" id="searchForm" style="flex-wrap: wrap; gap: 8px; align-items: center;">
+    <input type="text" id="keyword" placeholder="搜索商品关键词（可选）..." value="{{ task.keyword if task and task.keyword else '' }}" style="width: 200px;">
+    <input type="number" id="quantity" value="500" min="1" max="5000" title="数量" style="width: 70px;">
+    
+    <span style="color: #999; font-size: 12px;">价格:</span>
+    <input type="number" id="filterPriceMin" placeholder="最低" style="width: 70px; padding: 6px 10px; border: 1px solid #e8e8e8; border-radius: 4px;">
+    <span style="color: #999;">-</span>
+    <input type="number" id="filterPriceMax" placeholder="最高" style="width: 70px; padding: 6px 10px; border: 1px solid #e8e8e8; border-radius: 4px;">
+    
+    <button type="submit" style="padding: 8px 20px; background: #ff6a00; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">搜索</button>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if task %}
+<div class="action-bar">
+    <div class="action-left">
+        <span style="font-size: 14px; color: #666;">
+            <span class="tag" style="background: #ff6a00; color: #fff;">分销严选</span>
+            {% if task.keyword %}
+            搜索 "<strong style="color: #ff6a00;">{{ task.keyword }}</strong>"
+            {% else %}
+            全部商品
+            {% endif %}
+            共找到 <strong>{{ total_products }}</strong> 件商品
+            {% if total_products > 0 %}
+            ，当前显示第 <strong>{{ (page - 1) * page_size + 1 }}-{{ [page * page_size, total_products]|min }}</strong> 件
+            {% endif %}
+        </span>
+    </div>
+    <div class="action-btns">
+        <button type="button" class="btn btn-sm" onclick="deselectAll()">取消全选</button>
+        <button type="button" class="btn btn-sm" onclick="selectAll()">全选</button>
+        <button type="button" class="btn btn-sm" onclick="exportSelection()">导出</button>
+        <button type="button" class="btn btn-sm btn-primary" id="confirmBtn">加入选品池</button>
+    </div>
+</div>
+
+<div class="stats-bar">
+    <div class="item">已选 <span class="num" id="selectedCount">0</span> 件</div>
+    <div class="item">任务ID: {{ task.id }}</div>
+    <div class="item">{{ task.created_at }}</div>
+</div>
+
+{% if products %}
+<div class="product-grid">
+    {% for product in products %}
+    <div class="product-card" id="product-{{ product.id }}" data-id="{{ product.id }}" data-offer="{{ product.offer_id }}">
+        <input type="checkbox" class="checkbox" onchange="toggleSelect({{ product.id }})" {% if product.selected %}checked{% endif %}>
+        <div class="image-wrap">
+            <img src="/api/proxy/image?url={{ product.image_url | urlencode }}" alt="{{ product.title }}" onerror="this.src='https://via.placeholder.com/200?text=No+Image'" loading="lazy">
+        </div>
+        <div class="content">
+            <div class="title">{{ product.title }}</div>
+            <div class="price">{{ "%.2f"|format(product.price) }}</div>
+            <div class="meta">
+                <span>销量 {{ product.sales_count or 0 }}</span>
+                {% if product.deliver_time %}
+                <span>{{ product.deliver_time }}</span>
+                {% endif %}
+            </div>
+            {% if product.service_tags %}
+            <div class="tags">
+                {% for tag in product.service_tags[:3] %}
+                    {% if '包换' in tag or '无理由' in tag %}
+                        <span class="tag green">{{ tag }}</span>
+                    {% elif '材质' in tag or '保障' in tag %}
+                        <span class="tag orange">{{ tag }}</span>
+                    {% else %}
+                        <span class="tag">{{ tag }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="footer">
+            <a href="https://detail.1688.com/offer/{{ product.offer_id }}.html" target="_blank">查看详情</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 分页控件 -->
+{% if total_pages > 1 %}
+<div class="pagination" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin: 30px 0; padding: 20px;">
+    <button class="btn btn-sm" onclick="goToPage({{ page - 1 }})" {% if page <= 1 %}disabled{% endif %}>上一页</button>
+    
+    <span style="color: #666; font-size: 14px;">
+        第 <input type="number" id="pageInput" value="{{ page }}" min="1" max="{{ total_pages }}" style="width: 50px; text-align: center; padding: 4px; border: 1px solid #d9d9d9; border-radius: 4px;"> / {{ total_pages }} 页
+    </span>
+    
+    <button class="btn btn-sm" onclick="goToPage({{ page + 1 }})" {% if page >= total_pages %}disabled{% endif %}>下一页</button>
+    
+    <select id="pageSizeSelect" onchange="changePageSize(this.value)" style="padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; margin-left: 10px;">
+        <option value="20" {% if page_size == 20 %}selected{% endif %}>20条/页</option>
+        <option value="50" {% if page_size == 50 %}selected{% endif %}>50条/页</option>
+    </select>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <div class="icon">📦</div>
+    <h2>未找到相关商品</h2>
+    <p>换个关键词试试</p>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <div class="icon">🔍</div>
+    <h2>搜索商品开始选品</h2>
+    <p>在上方输入商品关键词（可选），搜索1688商品</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const taskId = '{{ task.id if task else "" }}';
+    const currentPage = {{ page if page else 1 }};
+    const currentPageSize = {{ page_size if page_size else 50 }};
+    
+    document.getElementById('searchForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const keyword = document.getElementById('keyword').value.trim();
+        const quantity = document.getElementById('quantity').value;
+        
+        const filters = getFilters();
+        
+        showLoading('正在搜索商品...');
+        
+        try {
+            const params = new URLSearchParams({
+                keyword: keyword,
+                quantity: quantity
+            });
+            
+            if (filters.price_min) params.append('price_min', filters.price_min);
+            if (filters.price_max) params.append('price_max', filters.price_max);
+            
+            const response = await fetch(`/api/search?${params.toString()}`);
+            const result = await response.json();
+            
+            if (result.success && result.selection_url) {
+                window.location.href = result.selection_url;
+            } else {
+                showToast('搜索失败: ' + (result.error || '未知错误'), 'error');
+                hideLoading();
+            }
+        } catch (error) {
+            showToast('请求失败: ' + error.message, 'error');
+            hideLoading();
+        }
+    });
+    
+    function getFilters() {
+        return {
+            price_min: document.getElementById('filterPriceMin').value || null,
+            price_max: document.getElementById('filterPriceMax').value || null
+        };
+    }
+    
+    function resetFilters() {
+        document.getElementById('filterPriceMin').value = '';
+        document.getElementById('filterPriceMax').value = '';
+    }
+    
+    function goToPage(page) {
+        if (page < 1) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set('page', page);
+        window.location.href = url.toString();
+    }
+    
+    function changePageSize(size) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('page_size', size);
+        url.searchParams.set('page', 1); // 切换每页数量时重置到第一页
+        window.location.href = url.toString();
+    }
+    
+    // 页码输入框回车跳转
+    document.addEventListener('DOMContentLoaded', function() {
+        const pageInput = document.getElementById('pageInput');
+        if (pageInput) {
+            pageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const page = parseInt(this.value);
+                    const maxPage = parseInt(this.max);
+                    if (page >= 1 && page <= maxPage) {
+                        goToPage(page);
+                    } else {
+                        showToast('请输入有效的页码', 'error');
+                    }
+                }
+            });
+        }
+    });
+    
+    {% if task %}
+    function updateSelectedCount() {
+        document.getElementById('selectedCount').textContent = document.querySelectorAll('.checkbox:checked').length;
+    }
+    
+    function toggleSelect(productId) {
+        const card = document.getElementById('product-' + productId);
+        const checkbox = card.querySelector('.checkbox');
+        card.classList.toggle('selected', checkbox.checked);
+        updateSelectedCount();
+        
+        fetch(`/api/selection/${taskId}/select`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ product_ids: [productId], selected: checkbox.checked })
+        });
+    }
+    
+    function selectAll() {
+        document.querySelectorAll('.checkbox').forEach(cb => {
+            cb.checked = true;
+            cb.closest('.product-card').classList.add('selected');
+        });
+        updateSelectedCount();
+        fetch(`/api/selection/${taskId}/select`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ product_ids: [...document.querySelectorAll('.product-card')].map(c => c.dataset.id), selected: true })
+        });
+    }
+    
+    function deselectAll() {
+        document.querySelectorAll('.checkbox').forEach(cb => {
+            cb.checked = false;
+            cb.closest('.product-card').classList.remove('selected');
+        });
+        updateSelectedCount();
+        fetch(`/api/selection/${taskId}/select`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ product_ids: [...document.querySelectorAll('.product-card')].map(c => c.dataset.id), selected: false })
+        });
+    }
+    
+    function confirmSelection() {
+        const selected = document.querySelectorAll('.checkbox:checked').length;
+        
+        if (selected === 0) { 
+            showToast('请先选择商品', 'error'); 
+            return; 
+        }
+        
+        document.getElementById('confirmMessage').textContent = `确认将选中的 ${selected} 件商品加入选品池？`;
+        document.getElementById('confirmModal').style.display = 'flex';
+    }
+    
+    function doConfirm() {
+        document.getElementById('confirmModal').style.display = 'none';
+        
+        fetch(`/api/selection/${taskId}/confirm`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`成功添加 ${data.added_count} 件商品到选品池`, 'success');
+                    // 不跳转，保持在当前页面
+                } else { 
+                    showToast('操作失败', 'error'); 
+                }
+            })
+            .catch(err => {
+                showToast('请求失败: ' + err.message, 'error');
+            });
+    }
+    
+    function cancelConfirm() {
+        document.getElementById('confirmModal').style.display = 'none';
+    }
+    
+    function exportSelection() {
+        window.open(`/api/selection/${taskId}/export`, '_blank');
+    }
+    
+    document.querySelectorAll('.checkbox:checked').forEach(cb => {
+        cb.closest('.product-card').classList.add('selected');
+    });
+    updateSelectedCount();
+    
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            confirmSelection();
+        });
+    }
+    
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+    if (confirmOk) {
+        confirmOk.addEventListener('click', doConfirm);
+    }
+    if (confirmCancel) {
+        cancelConfirm.addEventListener('click', cancelConfirm);
+    }
+    {% endif %}
+</script>
+{% endblock %}

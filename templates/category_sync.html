@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% set active_menu = 'category' %}
+
+{% block title %}商城分类同步 - 1688分销选品系统{% endblock %}
+
+{% block page_title %}商城分类同步{% endblock %}
+
+{% block content %}
+<div class="category-sync-container" style="display: flex; gap: 20px; height: calc(100vh - 140px);">
+    <!-- 左侧树形分类 -->
+    <div class="category-tree-panel" style="width: 320px; background: #fff; border-radius: 8px; padding: 20px; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; font-size: 16px;">分类树</h3>
+            <button class="btn btn-sm btn-primary" onclick="syncCategories()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                </svg>
+                同步分类
+            </button>
+        </div>
+        
+        <!-- 同步数量显示 -->
+        <div id="syncCountDisplay" style="background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #52c41a; font-size: 13px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                已同步分类
+            </span>
+            <span id="categoryCount" style="color: #52c41a; font-size: 18px; font-weight: 600;">0</span>
+        </div>
+        
+        <div id="categoryTree" class="tree-container">
+            <!-- 树形分类将在这里渲染 -->
+        </div>
+    </div>
+    
+    <!-- 右侧详情 -->
+    <div class="category-detail-panel" style="flex: 1; background: #fff; border-radius: 8px; padding: 20px; overflow-y: auto;">
+        <div id="categoryDetail">
+            <div class="empty-state" style="padding: 80px 20px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 16px;">📁</div>
+                <h3 style="color: #333; font-weight: normal; margin-bottom: 8px;">请选择分类</h3>
+                <p style="color: #999; font-size: 14px;">点击左侧分类查看详情</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 同步确认弹窗 -->
+<div class="modal-overlay" id="syncCategoryModal">
+    <div class="modal" style="width: 400px;">
+        <h3>同步商城分类</h3>
+        <p>将从ERP系统同步最新的商品分类数据，是否继续？</p>
+        <div class="modal-actions">
+            <button class="btn btn-sm" onclick="closeSyncCategoryModal()">取消</button>
+            <button class="btn btn-sm btn-primary" onclick="confirmSyncCategories()">确认同步</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 分类数据
+    let categoryData = [];
+    let expandedNodes = new Set();
+    let selectedNodeId = null;
+    let categoryNodeMap = new Map();
+    
+    // 页面加载时获取分类数据
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCategories();
+    });
+    
+    function loadCategories() {
+        fetch('/api/categories')
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    categoryData = result.data || [];
+                    expandedNodes.clear();
+                    categoryNodeMap = buildCategoryNodeMap(categoryData);
+                    renderCategoryTree();
+                    updateSyncCountDisplay(result.total || countCategories(categoryData));
+                } else {
+                    showToast('获取分类失败: ' + (result.error || '未知错误'), 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Load categories error:', err);
+                showToast('获取分类失败', 'error');
+            });
+    }
+    
+    function renderCategoryTree() {
+        const container = document.getElementById('categoryTree');
+        if (categoryData.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #999; padding: 40px;">暂无分类数据<br>请点击"同步分类"按钮获取</div>';
+            return;
+        }
+        container.innerHTML = renderTreeNodes(categoryData, 0);
+    }
+    
+    function renderTreeNodes(nodes, level) {
+        if (!nodes || nodes.length === 0) return '';
+        
+        // 根据层级设置不同的缩进和样式
+        const indentMap = {
+            0: { paddingLeft: '0px', fontSize: '15px', fontWeight: '600', color: '#333', icon: '📁' },
+            1: { paddingLeft: '20px', fontSize: '14px', fontWeight: '500', color: '#444', icon: '📂' },
+            2: { paddingLeft: '40px', fontSize: '13px', fontWeight: 'normal', color: '#555', icon: '📄' }
+        };
+        const style = indentMap[level] || indentMap[2];
+        
+        return `<ul style="list-style: none; padding: 0; margin: 0;">
+            ${nodes.map(node => {
+                const isExpanded = expandedNodes.has(node.id);
+                const isSelected = selectedNodeId === node.id;
+                const hasChildren = node.children && node.children.length > 0;
+                const nodeStyle = hasChildren ? style : { ...style, icon: '📄' };
+                
+                return `
+                <li style="margin: 2px 0;">
+                    <div class="tree-node ${isSelected ? 'selected' : ''} level-${level}" 
+                         style="display: flex; align-items: center; 
+                                padding: 10px 12px; 
+                                padding-left: ${nodeStyle.paddingLeft};
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                transition: all 0.2s;
+                                background: ${isSelected ? '#e6f7ff' : 'transparent'};
+                                border-left: ${isSelected ? '3px solid #1890ff' : '3px solid transparent'};
+                                margin-left: ${level * 8}px;"
+                         onclick="selectNode(${node.id})"
+                         data-id="${node.id}">
+                        <span class="expand-icon" 
+                              style="width: 16px; height: 16px; margin-right: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; ${!hasChildren ? 'visibility: hidden;' : ''}"
+                              onclick="event.stopPropagation(); toggleNode(${node.id})">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" 
+                                 style="transform: ${isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'}; transition: transform 0.2s; color: #999;">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <span style="color: ${hasChildren ? '#fa8c16' : '#1890ff'}; margin-right: 8px; font-size: 16px;">
+                            ${hasChildren ? (isExpanded ? '📂' : '📁') : '📄'}
+                        </span>
+                        <span style="flex: 1; font-size: ${nodeStyle.fontSize}; color: ${isSelected ? '#1890ff' : nodeStyle.color}; font-weight: ${isSelected ? '500' : nodeStyle.fontWeight};">
+                            ${node.name}
+                        </span>
+                        ${node.status === 'inactive' ? '<span style="color: #999; font-size: 12px; background: #f5f5f5; padding: 2px 6px; border-radius: 4px;">关闭</span>' : '<span style="color: #52c41a; font-size: 12px; background: #f6ffed; padding: 2px 6px; border-radius: 4px;">开启</span>'}
+                    </div>
+                    ${hasChildren && isExpanded ? renderTreeNodes(node.children, level + 1) : ''}
+                </li>
+                `;
+            }).join('')}
+        </ul>`;
+    }
+    
+    function toggleNode(nodeId) {
+        if (expandedNodes.has(nodeId)) {
+            expandedNodes.delete(nodeId);
+        } else {
+            expandedNodes.add(nodeId);
+        }
+        renderCategoryTree();
+    }
+    
+    function selectNode(nodeId) {
+        selectedNodeId = nodeId;
+        updateSelectedNodeStyles();
+        renderCategoryDetail(nodeId);
+    }
+    
+    function renderCategoryDetail(nodeId) {
+        const node = categoryNodeMap.get(nodeId) || findNode(categoryData, nodeId);
+        if (!node) return;
+        
+        const container = document.getElementById('categoryDetail');
+        container.innerHTML = `
+            <div style="padding: 20px;">
+                <h2 style="margin: 0 0 24px 0; font-size: 20px; color: #333;">${node.name}</h2>
+                
+                <div style="background: #f5f5f5; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                        <div>
+                            <label style="color: #999; font-size: 13px;">分类ID</label>
+                            <div style="color: #333; font-size: 15px; margin-top: 4px;">${node.id}</div>
+                        </div>
+                        <div>
+                            <label style="color: #999; font-size: 13px;">父分类ID</label>
+                            <div style="color: #333; font-size: 15px; margin-top: 4px;">${node.parentId || '无'}</div>
+                        </div>
+                        <div>
+                            <label style="color: #999; font-size: 13px;">排序</label>
+                            <div style="color: #333; font-size: 15px; margin-top: 4px;">${node.sort}</div>
+                        </div>
+                        <div>
+                            <label style="color: #999; font-size: 13px;">状态</label>
+                            <div style="margin-top: 4px;">
+                                <span style="display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 13px;
+                                    ${node.status === 'active' ? 'background: #f6ffed; color: #52c41a;' : 'background: #f5f5f5; color: #999;'}">
+                                    ${node.status === 'active' ? '开启' : '关闭'}
+                                </span>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="color: #999; font-size: 13px;">子分类数</label>
+                            <div style="color: #333; font-size: 15px; margin-top: 4px;">${(node.children || []).length} 个</div>
+                        </div>
+                        <div>
+                            <label style="color: #999; font-size: 13px;">可见性</label>
+                            <div style="color: #333; font-size: 15px; margin-top: 4px;">${node.visible ? '可见' : '隐藏'}</div>
+                        </div>
+                    </div>
+                    ${node.picUrl ? `
+                    <div style="margin-top: 16px;">
+                        <label style="color: #999; font-size: 13px;">分类图标</label>
+                        <div style="margin-top: 8px;">
+                            <img src="${node.picUrl}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #e8e8e8;" onerror="this.style.display='none'">
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${node.description ? `
+                    <div style="margin-top: 16px;">
+                        <label style="color: #999; font-size: 13px;">描述</label>
+                        <div style="color: #333; font-size: 14px; margin-top: 4px;">${node.description}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function updateSelectedNodeStyles() {
+        document.querySelectorAll('#categoryTree .tree-node').forEach(nodeEl => {
+            const idValue = Number(nodeEl.dataset.id);
+            const selected = idValue === selectedNodeId;
+            nodeEl.classList.toggle('selected', selected);
+            nodeEl.style.background = selected ? '#e6f7ff' : 'transparent';
+            nodeEl.style.borderLeft = selected ? '3px solid #1890ff' : '3px solid transparent';
+            const nameSpan = nodeEl.querySelector('span[style*="flex: 1"]');
+            if (nameSpan) {
+                nameSpan.style.color = selected ? '#1890ff' : '';
+                nameSpan.style.fontWeight = selected ? '500' : '';
+            }
+        });
+    }
+
+    function buildCategoryNodeMap(nodes) {
+        const map = new Map();
+        const stack = Array.isArray(nodes) ? [...nodes] : [];
+        while (stack.length) {
+            const node = stack.pop();
+            if (!node || typeof node !== 'object') continue;
+            map.set(node.id, node);
+            if (Array.isArray(node.children) && node.children.length) {
+                for (const child of node.children) stack.push(child);
+            }
+        }
+        return map;
+    }
+    
+    function findNode(nodes, nodeId) {
+        for (const node of nodes) {
+            if (node.id === nodeId) return node;
+            if (node.children && node.children.length > 0) {
+                const found = findNode(node.children, nodeId);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+    
+    function syncCategories() {
+        document.getElementById('syncCategoryModal').classList.add('show');
+    }
+    
+    function closeSyncCategoryModal() {
+        document.getElementById('syncCategoryModal').classList.remove('show');
+    }
+    
+    function confirmSyncCategories() {
+        showLoading('正在同步分类...');
+        
+        fetch('/api/categories/sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(r => r.json())
+        .then(result => {
+            hideLoading();
+            closeSyncCategoryModal();
+            
+            if (result.success) {
+                // 更新同步数量显示
+                updateSyncCountDisplay(result.total || 0);
+                
+                // 显示同步成功提示
+                showSyncSuccessMessage(result.total || 0);
+                
+                // 重新加载分类数据
+                loadCategories();
+            } else {
+                if (result.code === 'UNAUTHORIZED') {
+                    showToast('登录已过期，请重新登录', 'error');
+                    setTimeout(() => window.location.href = '/login', 1500);
+                } else {
+                    showToast('同步失败: ' + (result.error || '未知错误'), 'error');
+                }
+            }
+        })
+        .catch(err => {
+            hideLoading();
+            closeSyncCategoryModal();
+            console.error('Sync categories error:', err);
+            showToast('同步失败', 'error');
+        });
+    }
+    
+    // 计算分类总数
+    function countCategories(nodes) {
+        let count = 0;
+        for (const node of nodes) {
+            count++;
+            if (node.children && node.children.length > 0) {
+                count += countCategories(node.children);
+            }
+        }
+        return count;
+    }
+    
+    // 更新同步数量显示
+    function updateSyncCountDisplay(count) {
+        const countSpan = document.getElementById('categoryCount');
+        if (countSpan) {
+            countSpan.textContent = count;
+        }
+    }
+    
+    // 显示同步成功提示
+    function showSyncSuccessMessage(count) {
+        // 创建提示元素
+        const messageDiv = document.createElement('div');
+        messageDiv.id = 'syncSuccessMessage';
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+        messageDiv.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <span>同步成功！共同步 <strong style="font-size: 16px;">${count}</strong> 个分类</span>
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        // 3秒后自动移除
+        setTimeout(() => {
+            messageDiv.style.opacity = '0';
+            messageDiv.style.transition = 'opacity 0.5s';
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 500);
+        }, 3000);
+    }
+    
+    // 点击遮罩关闭弹窗
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('show');
+            }
+        });
+    });
+</script>
+
+<style>
+    .tree-node:hover {
+        background: #f5f5f5 !important;
+    }
+    
+    .tree-node.selected:hover {
+        background: #e6f7ff !important;
+    }
+</style>
+{% endblock %}
